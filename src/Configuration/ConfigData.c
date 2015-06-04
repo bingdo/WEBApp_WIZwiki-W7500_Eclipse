@@ -22,8 +22,8 @@ S2E_Packet* get_S2E_Packet_pointer()
 void set_S2E_Packet_to_factory_value()
 {
 	s2e_packet.packet_size = sizeof(S2E_Packet);	// 133
-	s2e_packet.module_type[0] = 0x00;
-	s2e_packet.module_type[1] = 0x00;
+	s2e_packet.module_type[0] = 0x01;
+	s2e_packet.module_type[1] = 0x02;
 	s2e_packet.module_type[2] = 0x00;
 	memcpy(s2e_packet.module_name, "WIZ750WEB\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 25);
 	s2e_packet.fw_ver[0] = MAJOR_VER;
