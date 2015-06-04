@@ -330,8 +330,11 @@ void UART_buffer_flush(RINGBUFF_T *buf)
 
 void UART_flush(void)
 {
-	RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
-	RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
+	//RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
+	//RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
+	rxring.head = 0;
+	rxring.tail = 0;
+	memset(rxbuff, 0x00, UART_RRB_SIZE);
 }
 
 int UART_RxRB_GetCount()

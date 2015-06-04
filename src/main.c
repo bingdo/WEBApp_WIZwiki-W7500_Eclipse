@@ -307,14 +307,6 @@ int main()
 		//while(!(ret = mmc_mount()));
 	}
 
-	if(ret <= 0)
-	{
-#ifdef _MAIN_DEBUG_
-		printf("\r\n - Can't mount SD card: Please Reboot WIZ750WEB Board or Insert SD card\r\n");
-#endif
-		//while(!(ret = mmc_mount()));
-	}
-
 	if(ret > 0)
 	{
 #ifdef _MAIN_DEBUG_
@@ -350,12 +342,16 @@ int main()
 		IWDG_ReloadCounter(); // Feed IWDG
 #endif
 
+#ifdef F_USE_DATA_MODE
 		if(op_mode == OP_COMMAND) {			// Command Mode
 			atc_run();
 			sockwatch_run();
 		} else {							// DATA Mode
 			s2e_run(SOCK_DATA);
 		}
+#else
+		atc_run();
+#endif
 		
 		do_udp_config(SOCK_CONFIG);
 
