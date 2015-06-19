@@ -195,11 +195,11 @@ int main()
 
 	BOOT_Pin_Init();
 	Board_factory_Init();
-	UART_Configuration();
 	EXTI_Configuration();
 
 	/* Load Configure Information */
 	load_S2E_Packet_from_storage();
+	UART_Configuration();
 
 	/* Check MAC Address */
 	check_mac_address();
@@ -299,14 +299,6 @@ int main()
 #ifdef _USE_SDCARD_
 	// SD card Initialization
 	ret = mmc_mount();
-	if(ret <= 0)
-	{
-#ifdef _MAIN_DEBUG_
-		printf("\r\n - Can't mount SD card: Please Reboot WIZ750WEB Board or Insert SD card\r\n");
-#endif
-		//while(!(ret = mmc_mount()));
-	}
-
 	if(ret <= 0)
 	{
 #ifdef _MAIN_DEBUG_

@@ -7,18 +7,6 @@
 #include "storageHandler.h"
 #include "timerHandler.h"
 
-typedef struct __Remote_Info {
-	uint8_t ip[4];
-	uint16_t port;
-} __attribute__((packed)) Remote_Info;
-
-typedef struct __Firmware_Upload_Info {
-	WIZnet_Header wiznet_header;
-	Remote_Info configtool_info;
-	Remote_Info tftp_info;
-	uint8_t filename[50];
-} __attribute__((packed)) Firmware_Upload_Info;
-
 static void encrypt(uint8_t key, uint8_t *buffer, uint16_t len)
 {
 	uint16_t i;
