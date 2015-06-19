@@ -195,11 +195,11 @@ int main()
 
 	BOOT_Pin_Init();
 	Board_factory_Init();
-	UART_Configuration();
 	EXTI_Configuration();
 
 	/* Load Configure Information */
 	load_S2E_Packet_from_storage();
+	UART_Configuration();
 
 	/* Check MAC Address */
 	check_mac_address();

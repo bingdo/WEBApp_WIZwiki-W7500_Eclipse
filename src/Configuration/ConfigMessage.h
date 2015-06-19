@@ -127,6 +127,18 @@ typedef struct __WIZnet_Factory_Reset_Reply {
 	uint8_t src_mac_address[6];
 } __attribute__((packed)) WIZnet_Factory_Reset_Reply;
 
+typedef struct __Remote_Info {
+	uint8_t ip[4];
+	uint16_t port;
+} __attribute__((packed)) Remote_Info;
+
+typedef struct __Firmware_Upload_Info {
+	WIZnet_Header wiznet_header;
+	Remote_Info configtool_info;
+	Remote_Info tftp_info;
+	uint8_t filename[50];
+} __attribute__((packed)) Firmware_Upload_Info;
+
 void do_udp_config(uint8_t sock);
 void reply_firmware_upload_done(uint8_t sock);
 
