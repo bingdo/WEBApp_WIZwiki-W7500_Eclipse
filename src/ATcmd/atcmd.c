@@ -48,6 +48,7 @@
 extern uint8_t g_send_buf[WORK_BUF_SIZE+1];
 extern uint8_t g_recv_buf[WORK_BUF_SIZE+1];
 extern uint32_t baud_table[11];
+
 static void cmd_set_prev(uint8_t buflen);
 static int8_t cmd_divide(int8_t *buf);
 static void cmd_assign(void);
@@ -55,22 +56,13 @@ static void cmd_assign(void);
 static void hdl_nset(void);
 static void hdl_nstat(void);
 static void hdl_nmac(void);
-static void hdl_nopen(void);
-static void hdl_nauto(void);
-static void hdl_nclose(void);
-static void hdl_nsend(void);
-static void hdl_nsock(void);
-
-static void hdl_mset(void);
 static void hdl_mstat(void);
-static void hdl_musart(void);
-static void hdl_mdata(void);
+static void hdl_musart1(void);
+static void hdl_musart2(void);
 static void hdl_msave(void);
 static void hdl_mrst(void);
-
-static void hdl_fdns(void);
-static void hdl_estat(void);
-
+static void hdl_fiodir(void);
+static void hdl_fioval(void);
 
 #define ATCMD_BUF_SIZE		100
 #define PREVBUF_MAX_SIZE	250
@@ -84,24 +76,18 @@ static void hdl_estat(void);
 
 const struct at_command g_cmd_table[] =
 {
-	{ "ESTAT",		hdl_estat,  	NULL, NULL },
-
-	{ "NSET",		hdl_nset, 		NULL, NULL },				// OK
+	{ "NSET",		hdl_nset, 		NULL, NULL },
 	{ "NSTAT",		hdl_nstat, 		NULL, NULL },
 	{ "NMAC",		hdl_nmac, 		NULL, NULL },
-	{ "NOPEN",		hdl_nopen, 		NULL, NULL },
-	{ "NAUTO",		hdl_nauto, 		NULL, NULL },
-	{ "NCLOSE",		hdl_nclose, 	NULL, NULL },
-	{ "NSEND",		hdl_nsend,	 	NULL, NULL },
-	{ "NSOCK",		hdl_nsock,	 	NULL, NULL },
 
-	{ "MSET",		hdl_mset,	 	NULL, NULL },
 	{ "MSTAT",		hdl_mstat,	 	NULL, NULL },
-	{ "MUSART",		hdl_musart,	 	NULL, NULL },
-	{ "MDATA",		hdl_mdata,	 	NULL, NULL },
+	{ "MUSART1",	hdl_musart1, 	NULL, NULL },
+	{ "MUSART2",	hdl_musart2, 	NULL, NULL },
 	{ "MSAVE",		hdl_msave,	 	NULL, NULL },
 	{ "MRST",		hdl_mrst,	 	NULL, NULL },
-	{ "FDNS",		hdl_fdns,	 	NULL, NULL },
+
+	{ "FIODIR",		hdl_fiodir,	 	NULL, NULL },
+	{ "FIOVAL",		hdl_fioval,	 	NULL, NULL },
 
 	{ NULL, NULL, NULL, NULL }	// Should be last item
 };
@@ -127,13 +113,14 @@ void atc_init()
 	atci.sendsock = VAL_NONE;
 	atci.echo = VAL_ENABLE;
 	atci.poll = POLL_MODE_SEMI;
+
 	atci.sendbuf = g_send_buf;
 	atci.recvbuf = g_recv_buf;
 
-	sockwatch_open(0, atc_async_cb);	// Assign socket 1 to ATC module
+//	sockwatch_open(0, atc_async_cb);	// Assign socket 1 to ATC module
 
-	//UART_write("\r\n\r\n\r\n[W,0]\r\n", 13);
-	//UART_write("[S,0]\r\n", 7);
+//	UART_write("\r\n\r\n\r\n[W,0]\r\n", 13);
+//	UART_write("[S,0]\r\n", 7);
 }
 
 /**
@@ -146,8 +133,9 @@ void atc_run(void)
 	int8_t ret, recv_char;
 	static uint8_t buflen = 0;
 
-	if(UART_read(&recv_char, 1) <= 0) return; // ?�력 �??�는 경우		printf("RECV: 0x%x\r\n", recv_char);
+	if(UART_read(&recv_char, 1) <= 0) return; // ?�력 �??�는 경우		printf("RECV: 0x%x\r\n", recv_char);
 
+#if 0	// 2014.09.03 
 	if(atci.sendsock != VAL_NONE)
 	{
 		atci.sendbuf[atci.worklen++] = recv_char;
@@ -157,6 +145,7 @@ void atc_run(void)
 		}
 		return;
 	}
+#endif
 
 	if(isgraph(recv_char) == 0 && (recv_char != 0x20))	// ?�어 문자 처리
 	{	//printf("ctrl\r\n");
@@ -241,7 +230,7 @@ static void cmd_set_prev(uint8_t buflen)
 		} else CRITICAL_ERR("ring buf 2");
 	}
 
-	if(prevbuf[previdx] == NULL) CRITICAL_ERR("malloc fail");	//  만약 ?�패?�도 �??�고 ?�으�??�정
+	if(prevbuf[previdx] == NULL) CRITICAL_ERR("malloc fail");	//  만약 ?�패?�도 �??�고 ?�으�??�정
 	else {
 		strcpy((char*)prevbuf[previdx], (char*)termbuf);	//printf("$$%s## was set\r\n", prevbuf[previdx]);
 		if(previdx == PREVBUF_LAST) previdx = 0;
@@ -316,7 +305,7 @@ static int8_t cmd_divide(int8_t *buf)
 		CMD_CLEAR();
 		goto FAIL_END;
 	}
-	DBGA("Debug: (%s)", tmpptr);	//최�? arg?�게 ?�어??�??�인??- Strict Param ?�책
+	DBGA("Debug: (%s)", tmpptr);	//최�? arg?�게 ?�어??�??�인??- Strict Param ?�책
 
 OK_END:
 	ret = RET_OK;
@@ -450,7 +439,7 @@ static void hdl_nset(void)
 	int8_t mode, num = -1;
 	uint8_t ip[4];
 
-	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;	// x???�?치환
+	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;	// x�뒗 ?濡� 移섑??
 	if(atci.tcmd.sign == CMD_SIGN_QUEST)
 	{
 		if(atci.tcmd.arg1[0] != 0) {
@@ -557,207 +546,6 @@ static void hdl_nmac(void)
 	}
 	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }
-
-static uint16_t client_port = 2000;
-static void hdl_nopen(void)
-{
-	int8_t type=0;
-	uint8_t DstIP[4], *dip = NULL;
-	uint16_t SrcPort, DstPort = 0;
-
-	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;
-	if(atci.tcmd.sign == CMD_SIGN_QUEST)
-	{
-		CMD_CLEAR();
-		act_nopen_q();
-	}
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		if(CMP_CHAR_4(atci.tcmd.arg1, 'A', 'S', 'C', 'U')) RESP_CDR(RET_WRONG_ARG, 1);
-
-		if(atci.tcmd.arg1[0] == 'S') {
-			if(port_check(atci.tcmd.arg2, &SrcPort) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
-			CHK_ARG_LEN(atci.tcmd.arg3, 0, 3);
-			CHK_ARG_LEN(atci.tcmd.arg4, 0, 4);
-		} else if(atci.tcmd.arg1[0] == 'C') {
-			if(port_check(atci.tcmd.arg2, &SrcPort) != RET_OK)
-				SrcPort = client_port;
-			if(ip_check(atci.tcmd.arg3, DstIP) != RET_OK) RESP_CDR(RET_WRONG_ARG, 3);
-			if(port_check(atci.tcmd.arg4, &DstPort) != RET_OK) RESP_CDR(RET_WRONG_ARG, 4);
-			dip = DstIP;
-		} else if(atci.tcmd.arg1[0] == 'U') {
-			if(port_check(atci.tcmd.arg2, &SrcPort) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
-			if(atci.tcmd.arg3[0] != 0 && atci.tcmd.arg4[0] != 0) {
-				if(ip_check(atci.tcmd.arg3, DstIP) != RET_OK) RESP_CDR(RET_WRONG_ARG, 3);
-				if(port_check(atci.tcmd.arg4, &DstPort) != RET_OK) RESP_CDR(RET_WRONG_ARG, 4);
-				dip = DstIP;
-			} else {
-				CHK_ARG_LEN(atci.tcmd.arg3, 0, 3);
-				CHK_ARG_LEN(atci.tcmd.arg4, 0, 4);
-			}
-		} else {	// 'A'	무시?�책?�냐 ?�니�??��? ?�인 ?�책?�냐
-			// Nothing to do for A mode
-		}
-
-		CHK_ARG_LEN(atci.tcmd.arg5, 0, 5);
-		type = atci.tcmd.arg1[0];
-		CMD_CLEAR();
-		act_nopen_a(type, SrcPort, dip, DstPort);
-	}
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
-}
-
-static void hdl_nauto(void)
-{
-	RESP_CR(RET_NOT_ALLOWED);
-}
-
-static void hdl_nclose(void)
-{
-	int8_t num = -1;
-
-	if(atci.tcmd.sign == CMD_SIGN_NONE) RESP_CR(RET_WRONG_SIGN);
-	if(atci.tcmd.sign == CMD_SIGN_QUEST) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		if(atci.tcmd.arg1[0] != 0) {
-			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, ATC_SOCK_NUM_START, ATC_SOCK_NUM_END)) 
-				RESP_CDR(RET_RANGE_OUT, 1);
-		}
-		CMD_CLEAR();
-		act_nclose(num);
-		if(client_port == 65535)
-			client_port = 2000;
-		else
-			client_port++;
-	}
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
-}
-
-static void hdl_nsend(void)
-{
-	int8_t num = -1;
-	int32_t ret;
-	uint8_t *dip = NULL;
-	uint16_t *dport = NULL;
-
-	if(atci.tcmd.sign == CMD_SIGN_NONE) RESP_CR(RET_WRONG_SIGN);
-	if(atci.tcmd.sign == CMD_SIGN_QUEST) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		if(atci.tcmd.arg1[0] != 0) {
-			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, ATC_SOCK_NUM_START, ATC_SOCK_NUM_END)) 
-				RESP_CDR(RET_RANGE_OUT, 1);
-		}
-		if(str_check(isdigit, atci.tcmd.arg2) != RET_OK || 
-			(atci.sendlen = atoi((char*)atci.tcmd.arg2)) < 1 || 
-			atci.sendlen > WORK_BUF_SIZE) RESP_CDR(RET_RANGE_OUT, 2);
-
-		if(atci.tcmd.arg3[0]) {
-			if(ip_check(atci.tcmd.arg3, atci.sendip) == RET_OK) dip = atci.sendip;
-			else RESP_CDR(RET_WRONG_ARG, 3);
-		}
-		if(atci.tcmd.arg4[0]) {
-			if(port_check(atci.tcmd.arg4, &atci.sendport)==RET_OK) dport = &atci.sendport;
-			else RESP_CDR(RET_WRONG_ARG, 4);
-		}
-
-		CHK_ARG_LEN(atci.tcmd.arg5, 0, 5);
-		CHK_ARG_LEN(atci.tcmd.arg6, 0, 6);
-		CMD_CLEAR();
-		ret = act_nsend_chk(num, &atci.sendlen, dip, dport);
-		if(ret != RET_OK) return;
-
-		atci.sendsock = num;	// ?�효??검?��? ?�료?�면 SEND모드�??�환
-		atci.worklen = 0;
-		cmd_resp(RET_ASYNC, num);
-	}
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
-}
-
-static void hdl_nsock(void)
-{
-	
-	int8_t num = -1;
-
-	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;
-	if(atci.tcmd.sign == CMD_SIGN_QUEST)
-	{
-		CMD_CLEAR();
-		act_nsock(VAL_NONE);
-	}
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		if(atci.tcmd.arg1[0] != 0) {
-			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, ATC_SOCK_NUM_START, ATC_SOCK_NUM_END)) 
-				RESP_CDR(RET_RANGE_OUT, 1);
-		}
-		CMD_CLEAR();
-		act_nsock(num);
-	}
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
-}
-
-static void hdl_mset(void)
-{
-	int8_t echo, poll, num = -1;	//, mode, country
-
-	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;	// [?] 구현
-	if(atci.tcmd.sign == CMD_SIGN_QUEST)
-	{
-		if(atci.tcmd.arg1[0] != 0) {
-			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 3)) RESP_CDR(RET_RANGE_OUT, 1);
-		}
-		CMD_CLEAR();
-		act_mset_q(num);
-	}
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV)
-	{
-		if(atci.tcmd.arg1[0] != 0) {
-			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 3)) RESP_CDR(RET_RANGE_OUT, 1);
-			if(num == 1) {
-				if(CMP_CHAR_2(atci.tcmd.arg2, 'E', 'D')) RESP_CDR(RET_WRONG_ARG, 2);
-				echo = atci.tcmd.arg2[0];
-				CMD_CLEAR();
-				act_mset_a(echo, 0, 0);
-			} else if(num == 2) {
-				if(CMP_CHAR_3(atci.tcmd.arg2, 'F', 'S', 'D')) RESP_CDR(RET_WRONG_ARG, 2);
-				poll = atci.tcmd.arg2[0];
-				CMD_CLEAR();
-				act_mset_a(0, poll, 0);
-			} else RESP_CDR(RET_NOT_ALLOWED, 2);	// �?? ?�정 ?�직 구현?�함
-		} else RESP_CDR(RET_WRONG_ARG, 1);
-	}
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		num = 0;
-		if(atci.tcmd.arg1[0] != 0) {
-			num++;
-			if(CMP_CHAR_2(atci.tcmd.arg1, 'E', 'D')) RESP_CDR(RET_WRONG_ARG, 1);
-		}
-		if(atci.tcmd.arg2[0] != 0) {
-			num++;
-			if(CMP_CHAR_3(atci.tcmd.arg2, 'F', 'S', 'D')) RESP_CDR(RET_WRONG_ARG, 2);
-		}
-		// arg 3 ?�??�단 무시
-		if(num == 0) RESP_CR(RET_NOT_ALLOWED);
-		echo = atci.tcmd.arg1[0];
-		poll = atci.tcmd.arg2[0];
-		CMD_CLEAR();
-		act_mset_a(echo, poll, 0);
-	} 
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);	
-}
-
 static void hdl_mstat(void)
 {
 	int8_t num = -1;
@@ -777,7 +565,7 @@ static void hdl_mstat(void)
 	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }
 
-static void hdl_musart(void)
+static void hdl_musart1(void)
 {
 	int8_t num = -1;
 	S2E_Packet *value = get_S2E_Packet_pointer();
@@ -790,7 +578,7 @@ static void hdl_musart(void)
 			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 5)) RESP_CDR(RET_RANGE_OUT, 1);
 		}
 		CMD_CLEAR();
-		act_uart_q(num);
+		act_uart_q(UART1, num);
 	}
 	else if(atci.tcmd.sign == CMD_SIGN_INDIV) 
 	{
@@ -812,13 +600,13 @@ static void hdl_musart(void)
 				}
 				if(valid_arg == 0) RESP_CDR(RET_WRONG_ARG, 2);
 				CMD_CLEAR();
-				act_uart_a(&(value->serial_info[0]));
+				act_uart_a(UART1, &(value->serial_info[0]));
 			} else if(num == 2) {	// Word Length
 				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
-				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 5, 8)) RESP_CDR(RET_RANGE_OUT, 2);
+				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 8, 9)) RESP_CDR(RET_RANGE_OUT, 2);
 				else value->serial_info[0].data_bits = num;
 				CMD_CLEAR();
-				act_uart_a(&(value->serial_info[0]));
+				act_uart_a(UART1, &(value->serial_info[0]));
 			} else if(num == 3) {	// Parity Bit
 				if(str_check(isalpha, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
 				if(CMP_CHAR_3(atci.tcmd.arg2, 'N', 'O', 'E')) RESP_CDR(RET_WRONG_ARG, 2);
@@ -828,20 +616,20 @@ static void hdl_musart(void)
 					else if(atci.tcmd.arg2[0] == 'E') value->serial_info[0].parity = parity_even;
 				}
 				CMD_CLEAR();
-				act_uart_a(&(value->serial_info[0]));
+				act_uart_a(UART1, &(value->serial_info[0]));
 			} else if(num == 4) {	// Stop Bit
 				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
 				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 1, 2)) RESP_CDR(RET_RANGE_OUT, 2);
 				else value->serial_info[0].stop_bits = num;
 				CMD_CLEAR();
-				act_uart_a(&(value->serial_info[0]));
+				act_uart_a(UART1, &(value->serial_info[0]));
 			} else if(num == 5) {	// Flow Control 
 				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
 				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 0, 3)) RESP_CDR(RET_RANGE_OUT, 2);
 				else value->serial_info[0].flow_control = num;
 				CMD_CLEAR();
-				act_uart_a(&(value->serial_info[0]));
-			} else RESP_CDR(RET_NOT_ALLOWED, 2);	// �?? ?�정 ?�직 구현?�함
+				act_uart_a(UART1, &(value->serial_info[0]));
+			} else RESP_CDR(RET_NOT_ALLOWED, 2);	// ?��媛� �꽕�젙 �븘吏� ?�ы쁽�븞�븿
 		} else RESP_CDR(RET_WRONG_ARG, 1);
 	}
 	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
@@ -864,7 +652,7 @@ static void hdl_musart(void)
 		}
 		if(atci.tcmd.arg2[0] != 0) {			// Word Length
 			if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
-			if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 5, 8)) RESP_CDR(RET_RANGE_OUT, 2);
+			if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 8, 9)) RESP_CDR(RET_RANGE_OUT, 2);
 			else value->serial_info[0].data_bits = num;
 		}
 		if(atci.tcmd.arg3[0] != 0) {			// Parity Bit
@@ -883,32 +671,129 @@ static void hdl_musart(void)
 		}
 		if(atci.tcmd.arg5[0] != 0) {			// Flow Control
 			if(str_check(isdigit, atci.tcmd.arg5) != RET_OK) RESP_CDR(RET_WRONG_ARG, 5);
-			if(CHK_DGT_RANGE(atci.tcmd.arg5, num, 0, 3)) RESP_CDR(RET_RANGE_OUT, 5);
+			if(CHK_DGT_RANGE(atci.tcmd.arg5, num, 0, 1)) RESP_CDR(RET_RANGE_OUT, 5);
 			else value->serial_info[0].flow_control = num;
 		}
 
 		CMD_CLEAR();
-		act_uart_a(&(value->serial_info[0]));
+		act_uart_a(UART1, &(value->serial_info[0]));
 	}
 	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }
 
-static void hdl_mdata(void)
+static void hdl_musart2(void)
 {
 	int8_t num = -1;
+	S2E_Packet *value = get_S2E_Packet_pointer();
 
 	if(atci.tcmd.sign == CMD_SIGN_NONE) atci.tcmd.sign = CMD_SIGN_QUEST;
 	if(atci.tcmd.sign == CMD_SIGN_QUEST)
 	{
 		if(atci.tcmd.arg1[0] != 0) {
 			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
-			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 6)) RESP_CDR(RET_RANGE_OUT, 1);
+			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 5)) RESP_CDR(RET_RANGE_OUT, 1);
 		}
 		CMD_CLEAR();
-		act_mdata();
+		act_uart_q(UART2, num);
 	}
-	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL) RESP_CR(RET_WRONG_SIGN);
+	else if(atci.tcmd.sign == CMD_SIGN_INDIV) 
+	{
+		if(atci.tcmd.arg1[0] != 0) {
+			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
+			if(CHK_DGT_RANGE(atci.tcmd.arg1, num, 1, 5)) RESP_CDR(RET_RANGE_OUT, 1);
+			if(num == 1) {			// Baud Rate
+				uint32_t baud, i, loop, valid_arg = 0;
+				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+				baud = atoi((const char *)atci.tcmd.arg2);
+
+				loop = sizeof(baud_table) / sizeof(baud_table[0]);
+				for(i = 0 ; i < loop ; i++) {
+					if(baud == baud_table[i]) {
+						value->serial_info[1].baud_rate = baud;
+						valid_arg = 1;
+						break;
+					}
+				}
+				if(valid_arg == 0) RESP_CDR(RET_WRONG_ARG, 2);
+				CMD_CLEAR();
+				act_uart_a(UART2, &(value->serial_info[1]));
+			} else if(num == 2) {	// Word Length
+				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 8, 9)) RESP_CDR(RET_RANGE_OUT, 2);
+				else value->serial_info[1].data_bits = num;
+				CMD_CLEAR();
+				act_uart_a(UART2, &(value->serial_info[1]));
+			} else if(num == 3) {	// Parity Bit
+				if(str_check(isalpha, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+				if(CMP_CHAR_3(atci.tcmd.arg2, 'N', 'O', 'E')) RESP_CDR(RET_WRONG_ARG, 2);
+				else {
+					if(atci.tcmd.arg2[0] == 'N') value->serial_info[1].parity = parity_none;
+					else if(atci.tcmd.arg2[0] == 'O') value->serial_info[1].parity = parity_odd;
+					else if(atci.tcmd.arg2[0] == 'E') value->serial_info[1].parity = parity_even;
+				}
+				CMD_CLEAR();
+				act_uart_a(UART2, &(value->serial_info[1]));
+			} else if(num == 4) {	// Stop Bit
+				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 1, 2)) RESP_CDR(RET_RANGE_OUT, 2);
+				else value->serial_info[1].stop_bits = num;
+				CMD_CLEAR();
+				act_uart_a(UART2, &(value->serial_info[1]));
+			} else if(num == 5) {	// Flow Control 
+				if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+				if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 0, 3)) RESP_CDR(RET_RANGE_OUT, 2);
+				else value->serial_info[1].flow_control = num;
+				CMD_CLEAR();
+				act_uart_a(UART2, &(value->serial_info[1]));
+			} else RESP_CDR(RET_NOT_ALLOWED, 2);	// ?��媛� �꽕�젙 �븘吏� ?�ы쁽�븞�븿
+		} else RESP_CDR(RET_WRONG_ARG, 1);
+	}
+	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
+	{
+		num = 0;
+		if(atci.tcmd.arg1[0] != 0) {			// Baud Rate
+			uint32_t baud, i, loop, valid_arg = 0;
+			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
+			baud = atoi((const char *)atci.tcmd.arg1);
+
+			loop = sizeof(baud_table) / sizeof(baud_table[0]);
+			for(i = 0 ; i < loop ; i++) {
+				if(baud == baud_table[i]) {
+					value->serial_info[1].baud_rate = baud;
+					valid_arg = 1;
+					break;
+				}
+			}
+			if(valid_arg == 0) RESP_CDR(RET_WRONG_ARG, 1);
+		}
+		if(atci.tcmd.arg2[0] != 0) {			// Word Length
+			if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+			if(CHK_DGT_RANGE(atci.tcmd.arg2, num, 8, 9)) RESP_CDR(RET_RANGE_OUT, 2);
+			else value->serial_info[1].data_bits = num;
+		}
+		if(atci.tcmd.arg3[0] != 0) {			// Parity Bit
+			if(str_check(isalpha, atci.tcmd.arg3) != RET_OK) RESP_CDR(RET_WRONG_ARG, 3);
+			if(CMP_CHAR_3(atci.tcmd.arg3, 'N', 'O', 'E')) RESP_CDR(RET_WRONG_ARG, 3);
+			else {
+				if(atci.tcmd.arg3[0] == 'N') value->serial_info[1].parity = parity_none;
+				else if(atci.tcmd.arg3[0] == 'O') value->serial_info[1].parity = parity_odd;
+				else if(atci.tcmd.arg3[0] == 'E') value->serial_info[1].parity = parity_even;
+			}
+		}
+		if(atci.tcmd.arg4[0] != 0) {			// Stop Bit
+			if(str_check(isdigit, atci.tcmd.arg4) != RET_OK) RESP_CDR(RET_WRONG_ARG, 4);
+			if(CHK_DGT_RANGE(atci.tcmd.arg4, num, 1, 2)) RESP_CDR(RET_RANGE_OUT, 4);
+			else value->serial_info[1].stop_bits = num;
+		}
+		if(atci.tcmd.arg5[0] != 0) {			// Flow Control
+			if(str_check(isdigit, atci.tcmd.arg5) != RET_OK) RESP_CDR(RET_WRONG_ARG, 5);
+			if(CHK_DGT_RANGE(atci.tcmd.arg5, num, 0, 3)) RESP_CDR(RET_RANGE_OUT, 5);
+			else value->serial_info[1].flow_control = num;
+		}
+
+		CMD_CLEAR();
+		act_uart_a(UART2, &(value->serial_info[1]));
+	}
 	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }
 
@@ -924,30 +809,49 @@ static void hdl_mrst(void)
 {
 	if(atci.tcmd.sign == CMD_SIGN_NONE) {
 		cmd_resp(RET_OK, VAL_NONE);
-		while(RingBuffer_GetCount(&txring) != 0);
+//		whil(RingBuffer_GetCount(&txring) != 0);
 		NVIC_SystemReset();
 	} else RESP_CR(RET_WRONG_SIGN);
 }
 
-static void hdl_fdns(void)
+static void hdl_fiodir(void)
 {
-	if(atci.tcmd.sign == CMD_SIGN_NONE)
-	{
-		act_fdns(NULL);
-		CMD_CLEAR();
-	}
+	int8_t pin_num = -1, pin_dir = -1;
+
+	if(atci.tcmd.sign == CMD_SIGN_NONE) RESP_CR(RET_WRONG_SIGN);
+	else if(atci.tcmd.sign == CMD_SIGN_QUEST) RESP_CR(RET_WRONG_SIGN);
 	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
-	else if(atci.tcmd.sign == CMD_SIGN_EQUAL)
-	{
-		if(atci.tcmd.arg1[0] != 0) {			// URL
-			act_fdns((char *)atci.tcmd.arg1);
-			CMD_CLEAR();
+	else if(atci.tcmd.sign == CMD_SIGN_EQUAL) {
+		if(atci.tcmd.arg1[0] != 0) {
+			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
+			if(CHK_DGT_RANGE(atci.tcmd.arg1, pin_num, 1, 16)) RESP_CDR(RET_RANGE_OUT, 1);
 		}
-	}
-	else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
+		if(atci.tcmd.arg2[0] != 0) {
+			if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+			if(CHK_DGT_RANGE(atci.tcmd.arg2, pin_dir, 1, 2)) RESP_CDR(RET_RANGE_OUT, 2);
+		}
+		CMD_CLEAR();
+		act_fiodir(pin_num, pin_dir);
+	} else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }
 
-static void hdl_estat(void)
+static void hdl_fioval(void)
 {
-	RESP_CR(RET_NOT_ALLOWED);
+	int8_t pin_num = -1, pin_output = -1;
+
+	if(atci.tcmd.sign == CMD_SIGN_NONE) RESP_CR(RET_WRONG_SIGN);
+	else if(atci.tcmd.sign == CMD_SIGN_QUEST) RESP_CR(RET_WRONG_SIGN);
+	else if(atci.tcmd.sign == CMD_SIGN_INDIV) RESP_CR(RET_WRONG_SIGN);
+	else if(atci.tcmd.sign == CMD_SIGN_EQUAL) {
+		if(atci.tcmd.arg1[0] != 0) {
+			if(str_check(isdigit, atci.tcmd.arg1) != RET_OK) RESP_CDR(RET_WRONG_ARG, 1);
+			if(CHK_DGT_RANGE(atci.tcmd.arg1, pin_num, 1, 16)) RESP_CDR(RET_RANGE_OUT, 1);
+		}
+		if(atci.tcmd.arg2[0] != 0) {
+			if(str_check(isdigit, atci.tcmd.arg2) != RET_OK) RESP_CDR(RET_WRONG_ARG, 2);
+			if(CHK_DGT_RANGE(atci.tcmd.arg2, pin_output, 0, 1)) RESP_CDR(RET_RANGE_OUT, 2);
+		}
+		CMD_CLEAR();
+		act_fioval(pin_num, pin_output);
+	} else CRITICAL_ERRA("wrong sign(%d)", atci.tcmd.sign);
 }

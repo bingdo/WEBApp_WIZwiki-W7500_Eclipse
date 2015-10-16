@@ -58,6 +58,7 @@ uint32_t Chip_UART_SendRB(UART_TypeDef *pUART, RINGBUFF_T *pRB, const void *data
 {
 	uint32_t ret;
 	uint8_t *p8 = (uint8_t *) data;
+	uint8_t ch;
 
 	/* Don't let UART transmit ring buffer change in the UART IRQ handler */
 	//UART_ITConfig(pUART, UART_IT_FLAG_TXI, DISABLE);
@@ -68,7 +69,11 @@ uint32_t Chip_UART_SendRB(UART_TypeDef *pUART, RINGBUFF_T *pRB, const void *data
 	/* Enable UART transmit interrupt */
 	UART_ITConfig(pUART, UART_IT_FLAG_TXI, ENABLE);
 
-	UART_SendData(pUART, 0x0a);
+	if(RingBuffer_Pop(pRB, &ch))
+	{
+		UART_SendData(pUART, ch);
+	}
+	//UART_SendData(pUART, 0x0a);
 
 	return ret;
 }
@@ -127,14 +132,15 @@ int Chip_UART_ReadRB_BLK(UART_TypeDef *pUART, RINGBUFF_T *pRB, void *data, int b
  */
 void Chip_UART_IRQRBHandler(UART_TypeDef *pUART, RINGBUFF_T *pRXRB, RINGBUFF_T *pTXRB)
 {
-	uint8_t ch;
+	uint8_t ch_tx;
+	uint8_t ch_rx;
 
 	/* Handle transmit interrupt if enabled */
 	if(UART_GetITStatus(pUART, UART_IT_FLAG_TXI)) {
         UART_ClearITPendingBit(pUART,UART_IT_FLAG_TXI);
-		if(RingBuffer_Pop(pTXRB, &ch))
+		if(RingBuffer_Pop(pTXRB, &ch_tx))
 		{
-			UART_SendData(pUART, ch);
+			UART_SendData(pUART, ch_tx);
 		}
 		else												// RingBuffer Empty
 		{
@@ -147,8 +153,8 @@ void Chip_UART_IRQRBHandler(UART_TypeDef *pUART, RINGBUFF_T *pRXRB, RINGBUFF_T *
 		if(RingBuffer_IsFull(pRXRB)) {
 			// Buffer Overflow
 		} else {
-			ch = UART_ReceiveData(pUART);
-			RingBuffer_Insert(pRXRB, &ch);
+			ch_rx = UART_ReceiveData(pUART);
+			RingBuffer_Insert(pRXRB, &ch_rx);
 		}
 	}
 }
@@ -330,8 +336,11 @@ void UART_buffer_flush(RINGBUFF_T *buf)
 
 void UART_flush(void)
 {
-	RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
-	RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
+	//RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
+	//RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
+	rxring.head = 0;
+	rxring.tail = 0;
+	memset(rxbuff, 0x00, UART_RRB_SIZE);
 }
 
 int UART_RxRB_GetCount()

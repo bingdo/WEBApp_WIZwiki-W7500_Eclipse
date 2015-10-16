@@ -142,14 +142,15 @@ uint16_t checksum(uint8_t * src, uint32_t len)
 
 /* @} */
 
-#ifdef USE_FULL_ASSERT
+//#ifdef USE_FULL_ASSERT
+#if 0
 /* NOT USE !!!
  * Asset function which declared at stm32f10x_conf.h file
  * If USE_FULL_ASSERT is defined this will be active.
  * @param file File name in which asset occurred.
  * @param line asserted line number
  */
-void assert_failed(uint8* file, uint32 line)
+void assert_failed(uint8_t* file, uint32_t line)
 { 
   /* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

@@ -19,10 +19,10 @@
 #define UART_SRB_SIZE 1024	/* Send */
 #define UART_RRB_SIZE 1024	/* Receive */
 
-#define UART_DEBUG UART0
-#define UART_DATA UART1
-//#define UART0_DATA
-#define UART1_DATA
+#define UART_DEBUG UART1
+#define UART_DATA UART0
+#define UART0_DATA
+//#define UART1_DATA
 
 extern RINGBUFF_T txring, rxring;
 extern uint32_t baud_table[11];
