@@ -11,8 +11,8 @@
  * \n\n @par Copyright (C) 2013 WIZnet. All rights reserved.
  */
 
-#ifndef _COMMON_H
-#define _COMMON_H
+#ifndef __AT_COMMON_H__
+#define __AT_COMMON_H__
 
 #define TOTAL_SOCK_NUM 1
 
@@ -134,5 +134,5 @@
 
 
 
-#endif //_COMMON_H
+#endif //__AT_COMMON_H__
 

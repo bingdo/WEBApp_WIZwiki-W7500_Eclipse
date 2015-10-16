@@ -415,19 +415,19 @@ void make_json_adc_status(uint8_t * buf, uint16_t * len)
 
 void make_json_serial_data(uint8_t * buf, uint16_t * len)
 {
-#if 0
+#if 1
 	*len = sprintf((char *)buf,"getRs232DataCallback({\"data\":\"%s\"});", rxring); // serial buffer
 	printf("---------------> rxring:%s\r\n", rxring);
 
 	// Serial data buffer clear
-	//UART_buffer_flush(&rxring);
+	UART_flush();
 #else
 	uint8_t * buf_ptr;
 	buf_ptr = getUSART1buf();
 	*len = sprintf((char *)buf,"getRs232DataCallback({\"data\":\"%s\"});", buf_ptr); // serial buffer
 
 	// Serial data buffer clear
-	//UART_flush();
+	UART_flush();
 #endif
 }
 

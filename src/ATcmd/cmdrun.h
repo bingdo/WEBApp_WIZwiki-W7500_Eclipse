@@ -120,48 +120,16 @@ extern struct atc_info atci;
 extern void cmd_resp_dump(int8_t idval, int8_t *dump);
 extern void cmd_resp(int8_t retval, int8_t idval);
 
-void atc_async_cb(uint8_t id, uint8_t item, int32_t ret);
 void act_nset_q(int8_t num);
 void act_nset_a(int8_t mode, uint8_t *ip, uint8_t *sn, uint8_t *gw, uint8_t *dns1, uint8_t *dns2);
 void act_nstat(int8_t num);
 void act_nmac_q(void);
 void act_nmac_a(uint8_t *mac);
-void act_nopen_q(void);
-void act_nopen_a(int8_t type, uint16_t sport, uint8_t *dip, uint16_t dport);
-void act_nclose(uint8_t sock);
-int8_t act_nsend_chk(uint8_t sock, uint16_t *len, uint8_t *dip, uint16_t *dport);
-void act_nsend(uint8_t sock, int8_t *buf, uint16_t len, uint8_t *dip, uint16_t *dport);
-void act_nrecv(int8_t sock, uint16_t maxlen);
-void act_nsock(int8_t sock);
-//void act_nopt(void);
-#if 0
-void act_wset(void);
-void act_wstat(void);
-void act_wscan(void);
-void act_wjoin(void);
-void act_wleave(void);
-void act_wsec(void);
-void act_wwps(void);
-#endif
-void act_mset_q(int8_t num);
-void act_mset_a(int8_t echo, int8_t poll, int8_t country);
 void act_mstat(void);
-void act_uart_q(int8_t num);
-void act_uart_a(struct __serial_info *serial);
-void act_mdata(void);
+void act_uart_q(UART_TypeDef *pUART, int8_t num);
+void act_uart_a(UART_TypeDef *pUART, struct __serial_info *serial);
 void act_msave(void);
-//void act_musart(void);
-//void act_mspi(void);
-//void act_mprof(void);
-//void act_fdhcpd(void);
-void act_fdns(char *url);
-//void act_fping(void);
-//void act_fgpio(void);
-//void act_eset(void);
-//void act_estat(void);
-
+void act_fiodir(int8_t pin_num, int8_t pin_dir);
+void act_fioval(int8_t pin_num, int8_t pin_output);
 
 #endif	//_CMDRUN_H
-
-
-

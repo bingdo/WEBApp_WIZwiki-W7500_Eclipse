@@ -32,7 +32,6 @@
 #include "extiHandler.h"
 #include "DHCP/dhcp.h"
 #include "DNS/dns.h"
-#include "S2E.h"
 #include "dhcp_cb.h"
 #include "atcmd.h"
 #include "httpServer.h"
@@ -60,6 +59,8 @@ UART_InitTypeDef UART_InitStructure;
 // Debugging Message Printout enable //
 ///////////////////////////////////////
 #define _MAIN_DEBUG_
+#define F_APP_DHCP
+#define F_APP_ATC
 
 ///////////////////////////
 // Demo Firmware Version //
@@ -159,8 +160,12 @@ int main()
 #if defined(F_APP_FTP)
 	wiz_NetInfo gWIZNETINFO;
 #endif
+#if defined(F_APP_DHCP) || defined(F_APP_DNS)
 	S2E_Packet *value = get_S2E_Packet_pointer();
+#endif
+#if defined(F_APP_DNS)
 	uint8_t dns_server_ip[4];
+#endif
 
     /* External Clock */
     CRG_PLL_InputFrequencySelect(CRG_OCLK);
@@ -244,53 +249,58 @@ int main()
 #endif
 
 	Mac_Conf();
-	DHCP_init(SOCK_DHCP, TX_BUF);
-
-	/* Initialize Network Information */
-	if(value->options.dhcp_use) {		// DHCP
+#if defined(F_APP_DHCP)
+	if(value->options.dhcp_use)		// DHCP
+	{
 		uint32_t ret;
 		uint8_t dhcp_retry = 0;
 
-		//printf("Start DHCP...\r\n");
-		while(1) {
+#ifdef _MAIN_DEBUG_
+		printf(" - DHCP Client running\r\n");
+#endif
+
+		DHCP_init(SOCK_DHCP, TX_BUF);
+		reg_dhcp_cbfunc(w5500_dhcp_assign, w5500_dhcp_assign, w5500_dhcp_conflict);
+
+		while(1)
+		{
 			ret = DHCP_run();
 
 			if(ret == DHCP_IP_LEASED)
+			{
+#ifdef _MAIN_DEBUG_
+				printf(" - DHCP Success: DHCP Leased time : %ld Sec.\r\n\r\n", getDHCPLeasetime());
+#endif
 				break;
+			}
 			else if(ret == DHCP_FAILED)
+			{
 				dhcp_retry++;
+#ifdef _MAIN_DEBUG_
+				if(dhcp_retry <= 3) printf(" - DHCP Timeout occurred and retry [%d]\r\n", dhcp_retry);
+#endif
+			}
 
-			if(dhcp_retry > 3) {
+			if(dhcp_retry > 3)
+			{
+#ifdef _MAIN_DEBUG_
+				printf(" - DHCP Failed\r\n\r\n");
+#endif
+				value->options.dhcp_use = 0;
 				Net_Conf();
 				break;
 			}
-			do_udp_config(SOCK_CONFIG);
-		}
-	} else 								// Static
-		Net_Conf();
-
-	DNS_init(SOCK_DNS, TX_BUF);
-	if(value->options.dns_use) {
-		uint8_t dns_retry = 0;
-
-		memcpy(dns_server_ip, value->options.dns_server_ip, sizeof(dns_server_ip));
-
-		while(1) {
-			if(DNS_run(dns_server_ip, (uint8_t *)value->options.dns_domain_name, value->network_info[0].remote_ip) == 1)
-				break;
-			else
-				dns_retry++;
-
-			if(dns_retry > 3) {
-				break;
-			}
 
 			do_udp_config(SOCK_CONFIG);
-
-			if(value->options.dhcp_use)
-				DHCP_run();
 		}
 	}
+	else 								// Static
+	{
+		Net_Conf();
+	}
+#else
+	Net_Conf();
+#endif
 
 #ifdef _MAIN_DEBUG_
 	display_Net_Info();
@@ -315,9 +325,11 @@ int main()
 	}
 #endif
 
+#if defined(F_APP_ATC)
 	atc_init(&rxring, &txring);
 
 	op_mode = OP_DATA;
+#endif
 
 	httpServer_init(TX_BUF, RX_BUF, MAX_HTTPSOCK, socknumlist);
 #ifdef _USE_WATCHDOG_
@@ -342,25 +354,16 @@ int main()
 		IWDG_ReloadCounter(); // Feed IWDG
 #endif
 
-		if(op_mode == OP_COMMAND) {			// Command Mode
-			atc_run();
-			sockwatch_run();
-		} else {							// DATA Mode
-			s2e_run(SOCK_DATA);
-		}
+#if defined(F_APP_ATC)
+		atc_run();
+#endif
 		
 		do_udp_config(SOCK_CONFIG);
 
+#if defined(F_APP_DHCP)
 		if(value->options.dhcp_use)
 			DHCP_run();
-
-		if(value->options.dns_use && run_dns == 1) {
-			memcpy(dns_server_ip, value->options.dns_server_ip, sizeof(dns_server_ip));
-
-			if(DNS_run(dns_server_ip, (uint8_t *)value->options.dns_domain_name, value->network_info[0].remote_ip) == 1) {
-				run_dns = 0;
-			}
-		}
+#endif
 
 		for(i = 0; i < MAX_HTTPSOCK; i++)	httpServer_run(i);	// HTTP server handler
 

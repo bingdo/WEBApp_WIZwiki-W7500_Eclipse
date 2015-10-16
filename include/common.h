@@ -21,6 +21,8 @@
 
 #define DATA_BUF_SIZE   2048
 
+//#define F_USE_DATA_MODE
+
 extern uint8_t op_mode;
 
 #endif

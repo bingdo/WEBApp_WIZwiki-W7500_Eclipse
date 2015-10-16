@@ -71,14 +71,12 @@
 									<listOptionValue builtIn="false" value="../src/Configuration"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/Ethernet"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/Internet"/>
-									<listOptionValue builtIn="false" value="../src/ioLibrary/Application/loopback"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/MDIO"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/Internet/FTPServer"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/Internet/httpServer"/>
 									<listOptionValue builtIn="false" value="../src/ioLibrary/Internet/TFTP"/>
 									<listOptionValue builtIn="false" value="../src/PlatformHandler"/>
 									<listOptionValue builtIn="false" value="../src/PlatformHandler/FatFs"/>
-									<listOptionValue builtIn="false" value="../src/S2E"/>
 									<listOptionValue builtIn="false" value="../src/util"/>
 								</option>
 								<option id="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.defs.940708397" name="Defined symbols (-D)" superClass="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.defs" useByScannerDiscovery="false" valueType="definedSymbols">

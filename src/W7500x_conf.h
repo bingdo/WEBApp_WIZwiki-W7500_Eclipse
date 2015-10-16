@@ -42,7 +42,6 @@
 //#include "../ioLibrary/Ethernet/socket.h"
 #include "socket.h"
 #include "W7500x_conf.h"
-#include "loopback.h"
 #include "W7500x_miim.h" /* Library for MDIO */
 
 /* Exported types ------------------------------------------------------------*/
